@@ -1,0 +1,122 @@
+TUTORIAL ROOTSFI BOT
+====================
+
+
+[1] INSTALL
+-----------
+Syarat: Node.js versi 18+
+
+  npm install
+
+
+[2] JALANKAN
+------------
+  npm start
+
+Bot akan minta pilih mode:
+  1. internal  = kirim antar akun sendiri (paling umum dipakai)
+  2. external  = kirim ke alamat luar dari file recipient.txt
+  3. balance-only = cek saldo saja, tidak kirim
+
+Lalu masukkan OTP dari email saat diminta (hanya pertama kali, selanjutnya otomatis).
+
+
+[3] FILE YANG PERLU DIISI
+--------------------------
+
+A) accounts.json — daftar akun bot
+
+  {
+    "accounts": [
+      {
+        "name": "namaakun1",
+        "email": "email1@gmail.com",
+        "address": "roots...::1220..."
+      },
+      {
+        "name": "namaakun2",
+        "email": "email2@gmail.com",
+        "address": "roots...::1220..."
+      }
+    ]
+  }
+
+  - name    : bebas, harus unik tiap akun
+  - email   : email yang terdaftar di RootsFi
+  - address : alamat Canton dari akun (wajib untuk mode internal)
+
+  Minimal 2 akun untuk mode internal.
+
+
+B) config.json — pengaturan bot
+
+  Yang perlu kamu atur:
+
+  PENGATURAN KIRIM
+  ~~~~~~~~~~~~~~~~
+  maxLoopTx           = berapa kali tiap akun kirim per hari
+                        contoh: 7 = setiap akun kirim 7x sehari
+
+  minDelayTxSeconds   = jeda MINIMAL antar akun (dalam detik)
+  maxDelayTxSeconds   = jeda MAKSIMAL antar akun (dalam detik)
+                        contoh: 1800 dan 3600 = jeda 30-60 menit
+                        antara akun1 selesai kirim sampai akun2 mulai kirim
+
+  delayCycleSeconds   = jeda antar round (dalam detik)
+                        1 round = semua akun sudah kirim 1x
+                        contoh: 300 = tunggu 5 menit sebelum round berikutnya
+
+  randomAmount.min    = nominal CC minimum per kirim
+  randomAmount.max    = nominal CC maksimum per kirim
+                        contoh: min=50, max=120 = kirim random 50-120 CC
+
+  PENGATURAN SAFETY
+  ~~~~~~~~~~~~~~~~~
+  minScoreThreshold   = batas skor minimum, akun di bawah ini otomatis berhenti kirim
+                        contoh: 40 = akun dengan skor < 40/100 di-skip
+
+  minHoldBalanceCc    = saldo CC minimum yang selalu ditahan (tidak pernah dikirim)
+                        contoh: 200 = selalu simpan minimal 200 CC di tiap akun
+
+
+C) recipient.txt — hanya untuk mode external
+
+  Isi satu alamat per baris:
+  roots...::1220...
+  roots...::1220...
+
+
+[4] CONTOH ALUR BOT (mode internal, 3 akun, maxLoopTx=7)
+---------------------------------------------------------
+
+  ROUND 1 (offset 1: tiap akun kirim ke akun berikutnya)
+    akun1 -> akun2  [tunggu 30-60 menit]
+    akun2 -> akun3  [tunggu 30-60 menit]
+    akun3 -> akun1
+    --- tunggu 5 menit (delayCycleSeconds) ---
+
+  ROUND 2 (offset 2: tiap akun kirim ke akun 2 posisi di depan)
+    akun1 -> akun3  [tunggu 30-60 menit]
+    akun2 -> akun1  [tunggu 30-60 menit]
+    akun3 -> akun2
+    --- tunggu 5 menit ---
+
+  ... lanjut sampai ROUND 7
+
+  Setelah 7 round selesai, bot tunggu sampai tengah malam UTC lalu ulang.
+  Setiap akun kirim 7x/hari ke 7 penerima berbeda.
+
+
+[5] STOP BOT
+-------------
+Tekan Ctrl+C di terminal.
+
+
+[6] TIPS
+--------
+- Jalankan mode balance-only dulu untuk cek saldo sebelum mulai kirim
+- Pastikan tiap akun punya saldo cukup (minHoldBalanceCc + randomAmount.max)
+  contoh: 200 + 120 = minimal 320 CC per akun
+- Jangan share file tokens.json (berisi session login)
+- Kalau OTP gagal/expired, jalankan ulang bot
+- Cek dashboard di terminal untuk pantau status tiap akun

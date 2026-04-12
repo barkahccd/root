@@ -1,0 +1,34 @@
+{
+  "send": {
+    "maxLoopTx": 7,
+    "minDelayTxSeconds": 1800,
+    "maxDelayTxSeconds": 3600,
+    "delayCycleSeconds": 300,
+    "sequentialAllRounds": true,
+    "randomAmount": {
+      "enabled": true,
+      "min": "50",
+      "max": "120",
+      "decimals": 3
+    }
+  },
+  "recipientFile": "recipient.txt",
+  "session": {
+    "proactiveVercelRefreshMinutes": 0,
+    "browserChallengeRetryAfterSeconds": 120,
+    "maxSessionReuseTransientAttempts": 3,
+    "maxSessionReuseTransientBrowserRefreshes": 2,
+    "transientBrowserRefreshTriggerFailures": 1,
+    "sessionReuseTransientRetryAfterSeconds": 30,
+    "maxConcurrentSessionReuse": 1,
+    "sessionReuseRetryJitterSeconds": 8
+  },
+  "ui": {
+    "dashboard": true,
+    "logLines": 20
+  },
+  "safety": {
+    "minScoreThreshold": 40,
+    "minHoldBalanceCc": 200
+  }
+}
