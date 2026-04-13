@@ -872,6 +872,7 @@ class PinnedDashboard {
       send: "-",
       transfer: "-",
       reward: "-",
+      rewardsThisWeek: "-",
       mode: "BALANCE",
       strategy: "balanced_human",
       swapsTotal: 0,
@@ -1030,6 +1031,7 @@ class PinnedDashboard {
     const currentSend = String(this.state.send || "-").trim();
     const currentReward = String(this.state.reward || "-").trim();
     const currentRewardsBucket = String(this.state.rewardsBucket || "-").trim();
+    const currentRewardsThisWeek = String(this.state.rewardsThisWeek || "-").trim();
     // Use per-account stats for TX Progress column (not global state)
     const accountStats = getPerAccountTxStats(selected);
     const currentProgress = `${accountStats.total} (ok:${accountStats.ok}|fail:${accountStats.fail})`;
@@ -1040,8 +1042,20 @@ class PinnedDashboard {
       progress: currentProgress !== "-" ? currentProgress : String(prev.progress || "-"),
       send: currentSend !== "-" ? currentSend : String(prev.send || "-"),
       reward: currentReward !== "-" ? currentReward : String(prev.reward || "-"),
-      rewardsBucket: currentRewardsBucket !== "-" ? currentRewardsBucket : String(prev.rewardsBucket || "-")
+      rewardsBucket: currentRewardsBucket !== "-" ? currentRewardsBucket : String(prev.rewardsBucket || "-"),
+      rewardsThisWeek: currentRewardsThisWeek !== "-" ? currentRewardsThisWeek : String(prev.rewardsThisWeek || "-")
     };
+  }
+
+  formatRewardsThisWeek(accountName, snapshotFallback) {
+    const entry = getAccountRewardsThisWeek(accountName);
+    if (isObject(entry)) {
+      const ccLabel = Number.isFinite(entry.cc) ? entry.cc.toFixed(2) : "?";
+      const usdLabel = Number.isFinite(entry.usd) ? entry.usd.toFixed(2) : "?";
+      return `${ccLabel} CC ($${usdLabel})`;
+    }
+    const fallback = String(snapshotFallback || "-");
+    return fallback || "-";
   }
 
   parseAccountRows() {
@@ -1087,7 +1101,8 @@ class PinnedDashboard {
           : String(snapshot.reward || "-"),
         rewardsBucket: isSelected
           ? (String(this.state.rewardsBucket || "-") !== "-" ? String(this.state.rewardsBucket || "-") : String(snapshot.rewardsBucket || "-"))
-          : String(snapshot.rewardsBucket || "-")
+          : String(snapshot.rewardsBucket || "-"),
+        rewardsThisWeek: this.formatRewardsThisWeek(name, snapshot.rewardsThisWeek)
       });
     }
 
@@ -1105,7 +1120,8 @@ class PinnedDashboard {
         progress: currentProgress,
         send: String(this.state.send || "-") !== "-" ? String(this.state.send || "-") : String(snapshot.send || "-"),
         reward: String(this.state.reward || "-") !== "-" ? String(this.state.reward || "-") : String(snapshot.reward || "-"),
-        rewardsBucket: String(this.state.rewardsBucket || "-") !== "-" ? String(this.state.rewardsBucket || "-") : String(snapshot.rewardsBucket || "-")
+        rewardsBucket: String(this.state.rewardsBucket || "-") !== "-" ? String(this.state.rewardsBucket || "-") : String(snapshot.rewardsBucket || "-"),
+        rewardsThisWeek: this.formatRewardsThisWeek(selected, snapshot.rewardsThisWeek)
       });
     }
 
@@ -1131,21 +1147,22 @@ class PinnedDashboard {
     const midBorder = `+${"-".repeat(frameWidth - 2)}+`;
     const bannerLine = (text) => `| ${this.formatCell(text, contentWidth)} |`;
 
-    // Dynamic table: 6 columns, auto-resize based on terminal width
+    // Dynamic table: 7 columns, auto-resize based on terminal width
     const fixedCols = {
       akun: 14,
       status: 9,
       cc: 10,
       txProgress: 20,
+      rewardsWeek: 22,
     };
-    const columnCount = 6;
+    const columnCount = 7;
     const separatorWidth = 3 * (columnCount - 1); // " | " between columns
-    const fixedTotal = fixedCols.akun + fixedCols.status + fixedCols.cc + fixedCols.txProgress;
+    const fixedTotal = fixedCols.akun + fixedCols.status + fixedCols.cc + fixedCols.txProgress + fixedCols.rewardsWeek;
     const flexTotal = Math.max(40, contentWidth - separatorWidth - fixedTotal);
     // Distribute flex space: Send Plan 55%, Score 45%
     const sendPlanWidth = Math.max(16, Math.floor(flexTotal * 0.55));
     const scoreWidth = Math.max(16, flexTotal - sendPlanWidth);
-    const tableWidths = [fixedCols.akun, fixedCols.status, fixedCols.cc, fixedCols.txProgress, sendPlanWidth, scoreWidth];
+    const tableWidths = [fixedCols.akun, fixedCols.status, fixedCols.cc, fixedCols.txProgress, sendPlanWidth, scoreWidth, fixedCols.rewardsWeek];
     const tableRow = (cells) => `| ${cells.map((cell, idx) => this.formatCell(String(cell || "-"), tableWidths[idx] || 10)).join(" | ")} |`;
     const tableRule = (char) => `| ${tableWidths.map((width) => char.repeat(width)).join(" | ")} |`;
 
@@ -1161,23 +1178,38 @@ class PinnedDashboard {
         `Sends: ${this.state.swapsTotal} total  ${this.state.swapsOk} ok  ${this.state.swapsFail} fail  |  Target: ${this.state.targetPerDay}/day`
       )
     );
+    const rewardsTotals = getTotalRewardsThisWeek();
+    lines.push(
+      bannerLine(
+        `Rewards this week (all accounts): ${rewardsTotals.cc.toFixed(2)} CC  |  $${rewardsTotals.usd.toFixed(2)}`
+      )
+    );
+    if (String(this.state.mode || "").toLowerCase() === "balance-only") {
+      const initialCcTotal = getTotalInitialCcBalance();
+      lines.push(
+        bannerLine(
+          `Initial balance (all accounts, at login): ${initialCcTotal.toFixed(4)} CC`
+        )
+      );
+    }
     lines.push(
       bannerLine(
         `State: ${this.state.phase}`
       )
     );
     lines.push(midBorder);
-    lines.push(tableRow(["Akun", "Status", "CC", "TX Progress", "Send Plan", "Score"]));
+    lines.push(tableRow(["Akun", "Status", "CC", "TX Progress", "Send Plan", "Score", "Rewards/Week"]));
     lines.push(tableRule("-"));
 
     if (rows.length === 0) {
-      lines.push(tableRow(["-", "IDLE", "-", "-", "-", "-"]));
+      lines.push(tableRow(["-", "IDLE", "-", "-", "-", "-", "-"]));
     } else {
       for (const row of rows) {
         const progressLabel = String(row.progress || "-");
         const sendLabel = String(row.send || "-");
         const rewardLabel = String(row.reward || "-");
-        lines.push(tableRow([row.name, row.status, row.cc, progressLabel, sendLabel, rewardLabel]));
+        const rewardsWeekLabel = String(row.rewardsThisWeek || "-");
+        lines.push(tableRow([row.name, row.status, row.cc, progressLabel, sendLabel, rewardLabel, rewardsWeekLabel]));
       }
     }
 
@@ -4289,6 +4321,44 @@ let QUALITY_SCORE_QUARANTINE_THRESHOLD = 30;
 let QUALITY_SCORE_WARN_THRESHOLD = 30;
 const qualityScoreByAccount = new Map();
 
+// Track initial CC balance per account — captured ONCE at first login, never refreshed
+const initialCcBalanceByAccount = new Map();
+
+function recordInitialCcBalance(accountName, ccNumeric) {
+  if (!accountName) return;
+  if (initialCcBalanceByAccount.has(accountName)) return;
+  const value = Number(ccNumeric);
+  if (!Number.isFinite(value)) return;
+  initialCcBalanceByAccount.set(accountName, value);
+}
+
+function getTotalInitialCcBalance() {
+  let total = 0;
+  for (const value of initialCcBalanceByAccount.values()) {
+    if (Number.isFinite(value)) total += value;
+  }
+  return total;
+}
+
+// Track Rewards earned this week per account (from /api/rewards tierProgress.earnedThisWeekCc)
+const rewardsThisWeekByAccount = new Map();
+
+function getAccountRewardsThisWeek(accountName) {
+  const entry = rewardsThisWeekByAccount.get(accountName);
+  return isObject(entry) ? entry : null;
+}
+
+function getTotalRewardsThisWeek() {
+  let totalCc = 0;
+  let totalUsd = 0;
+  for (const entry of rewardsThisWeekByAccount.values()) {
+    if (!isObject(entry)) continue;
+    if (Number.isFinite(entry.cc)) totalCc += entry.cc;
+    if (Number.isFinite(entry.usd)) totalUsd += entry.usd;
+  }
+  return { cc: totalCc, usd: totalUsd };
+}
+
 // Quarantine set: accounts with score < threshold
 // These accounts are excluded from both sending and receiving
 const quarantinedAccounts = new Set();
@@ -4374,6 +4444,24 @@ async function refreshThisWeekRewardDashboard(client, dashboard, accountLogTag =
             qualityLabel = `LOW ${qualityScore}/100`;
             console.log(withAccountTag(accountLogTag, `[warn] Score ${qualityScore}/100 < ${QUALITY_SCORE_WARN_THRESHOLD} — score is low but sending continues`));
           }
+        }
+      }
+
+      // Extract earned this week (CC tokens + USD) for the dashboard "Rewards/Week" column
+      if (accountName) {
+        const earnedCc = Number(data.tierProgress.earnedThisWeekCc);
+        const accruedUsd = Number(data.tierProgress.accruedThisWeekUsd);
+        if (Number.isFinite(earnedCc) || Number.isFinite(accruedUsd)) {
+          rewardsThisWeekByAccount.set(accountName, {
+            cc: Number.isFinite(earnedCc) ? earnedCc : 0,
+            usd: Number.isFinite(accruedUsd) ? accruedUsd : 0
+          });
+          const ccLabel = Number.isFinite(earnedCc) ? earnedCc.toFixed(2) : "?";
+          const usdLabel = Number.isFinite(accruedUsd) ? accruedUsd.toFixed(2) : "?";
+          dashboard.setState({ rewardsThisWeek: `${ccLabel} CC ($${usdLabel})` });
+          console.log(withAccountTag(accountLogTag,
+            `[info] Rewards this week: ${ccLabel} CC ($${usdLabel})`
+          ));
         }
       }
 
@@ -5995,6 +6083,7 @@ async function processAccount(context) {
           balance: `CC=${balance.cc} | USDCx=${balance.usdcx} | CBTC=${balance.cbtc}`
         });
         updateAccountCcBalance(account.name, balance.ccNumeric);
+        recordInitialCcBalance(account.name, balance.ccNumeric);
 
         await refreshThisWeekRewardDashboard(client, dashboard, accountLogTag, account.name);
 
@@ -6315,6 +6404,7 @@ async function processAccount(context) {
       balance: `CC=${balance.cc} | USDCx=${balance.usdcx} | CBTC=${balance.cbtc}`
     });
     updateAccountCcBalance(account.name, balance.ccNumeric);
+    recordInitialCcBalance(account.name, balance.ccNumeric);
 
     await refreshThisWeekRewardDashboard(client, dashboard, accountLogTag, account.name);
 
@@ -6989,15 +7079,88 @@ async function runDailyCycle(context) {
           break;
         }
 
+        // Inline rescue: if all pending entries are deferred due to insufficient-balance
+        // (or fragmented-balance), top them up from non-deferred rescuers before
+        // sleeping. Prevents waiting minutes while other accounts could send NOW.
+        let rescueAttempted = false;
+        if (sendMode === "internal" && !args.dryRun && nextPendingEntries.length > 0) {
+          const balanceDeferredEntries = nextPendingEntries.filter((entry) => {
+            const reason = String(entry.deferReason || "");
+            return reason === "insufficient-balance" || reason === "fragmented-balance";
+          });
+          if (balanceDeferredEntries.length === nextPendingEntries.length) {
+            const deferredNames = balanceDeferredEntries.map((entry) => entry.account.name);
+            const deferredSet = new Set(deferredNames);
+            const rescueCandidates = sortedAccounts.filter(
+              (acc) => !deferredSet.has(acc.name) && !quarantinedAccounts.has(acc.name)
+            );
+            if (rescueCandidates.length > 0) {
+              rescueAttempted = true;
+              const maxRescueSends = Math.min(deferredNames.length, rescueCandidates.length);
+              const shuffledRescuers = shuffleArray([...rescueCandidates]).slice(0, maxRescueSends);
+              console.log(
+                `[rescue-inline] ${deferredNames.length} accounts need balance: ${deferredNames.join(", ")} | ` +
+                `${shuffledRescuers.length} rescuers: ${shuffledRescuers.map((a) => a.name).join(", ")}`
+              );
+              for (let ri = 0; ri < shuffledRescuers.length; ri++) {
+                const acc = shuffledRescuers[ri];
+                const accToken = tokens.accounts[acc.name] || normalizeTokenProfile({});
+                tokens.accounts[acc.name] = accToken;
+                console.log(`[rescue-inline] [${ri + 1}/${shuffledRescuers.length}] ${acc.name} -> targeting ${deferredNames.join(", ")}`);
+                try {
+                  const rescueResult = await processAccount({
+                    account: acc,
+                    accountToken: accToken,
+                    config,
+                    tokens,
+                    tokensPath,
+                    sendMode,
+                    recipientsInfo,
+                    args,
+                    accountIndex: ri,
+                    totalAccounts,
+                    selectedAccounts: sortedAccounts,
+                    accountSnapshots,
+                    loopRound,
+                    totalLoopRounds,
+                    maxLoopTxOverride: 1,
+                    smartFillBlockRecipients: [],
+                    resumeFromDeferReason: "",
+                    preferRecipientNames: deferredNames
+                  });
+                  if (rescueResult && rescueResult.success && !rescueResult.deferred) {
+                    const bOk = clampToNonNegativeInt(rescueResult.completedTx, 0);
+                    const bFail = clampToNonNegativeInt(rescueResult.skippedTx, 0);
+                    if (bOk > 0 || bFail > 0) {
+                      addGlobalTxStats(bOk, bFail);
+                      addPerAccountTxStats(acc.name, bOk, bFail);
+                    }
+                  }
+                } catch (err) {
+                  console.log(`[rescue-inline] ${acc.name} failed: ${err.message}`);
+                }
+              }
+              const readyMs = Date.now() + (minAccountDelaySec * 1000);
+              for (const entry of nextPendingEntries) {
+                entry.deferUntilMs = readyMs;
+                entry.balanceRetries = 0;
+              }
+            }
+          }
+        }
+
         const nowAfterPassMs = Date.now();
         const nearestReadyMs = nextPendingEntries.reduce((minValue, entry) => {
           const candidate = entry.deferUntilMs || (nowAfterPassMs + (roundDeferPollSeconds * 1000));
           return Math.min(minValue, candidate);
         }, Number.MAX_SAFE_INTEGER);
         const waitMs = Math.max(0, nearestReadyMs - nowAfterPassMs);
-        const waitSeconds = Math.max(1, Math.ceil(waitMs / 1000));
+        // Cap wait to maxAccountDelaySec so we don't sleep minutes even when deferUntilMs is far.
+        const waitCeilingSec = Math.max(1, maxAccountDelaySec || roundDeferPollSeconds);
+        const waitSeconds = Math.max(1, Math.min(waitCeilingSec, Math.ceil(waitMs / 1000)));
         console.log(
-          `[cycle] Round ${loopRound}/${totalLoopRounds} has no send progress. Waiting ${waitSeconds}s before retrying deferred accounts...`
+          `[cycle] Round ${loopRound}/${totalLoopRounds} has no send progress.` +
+          `${rescueAttempted ? " Rescue pass completed." : ""} Waiting ${waitSeconds}s before retrying deferred accounts...`
         );
         if (!args.dryRun) {
           await sleep(waitSeconds * 1000);
